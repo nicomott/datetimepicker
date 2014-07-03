@@ -16,13 +16,19 @@
 
 package com.android.datetimepicker.time;
 
+import java.text.DateFormatSymbols;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.Locale;
+
 import android.animation.ObjectAnimator;
 import android.app.ActionBar.LayoutParams;
-import android.app.DialogFragment;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.os.Bundle;
+import android.support.v4.app.DialogFragment;
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -39,10 +45,6 @@ import com.android.datetimepicker.HapticFeedbackController;
 import com.android.datetimepicker.R;
 import com.android.datetimepicker.Utils;
 import com.android.datetimepicker.time.RadialPickerLayout.OnValueSelectedListener;
-
-import java.text.DateFormatSymbols;
-import java.util.ArrayList;
-import java.util.Locale;
 
 /**
  * Dialog to set a time.
@@ -109,6 +111,9 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
     private String mSelectHours;
     private String mMinutePickerDescription;
     private String mSelectMinutes;
+    
+    private Calendar mMinHourCal, mMaxHourCal;
+
 
     /**
      * The callback interface used to indicate the user is done filling in
@@ -139,6 +144,14 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
         ret.initialize(callback, hourOfDay, minute, is24HourMode);
         return ret;
     }
+    
+    public static TimePickerDialog newInstance(OnTimeSetListener callback,
+    		int hourOfDay, int minute, boolean is24HourMode,
+    		Calendar minHour, Calendar maxHour) {
+    	TimePickerDialog ret = new TimePickerDialog();
+    	ret.initialize(callback, hourOfDay, minute, is24HourMode, minHour, maxHour);
+    	return ret;
+    }
 
     public void initialize(OnTimeSetListener callback,
             int hourOfDay, int minute, boolean is24HourMode) {
@@ -149,6 +162,28 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
         mIs24HourMode = is24HourMode;
         mInKbMode = false;
         mThemeDark = false;
+    }
+    
+    public void initialize(OnTimeSetListener callback,
+    		int hourOfDay, int minute, boolean is24HourMode,
+    		Calendar minHour, Calendar maxHour) {
+
+    	initialize(callback, hourOfDay, minute, is24HourMode);
+    	
+    	mMinHourCal = minHour;
+    	mMaxHourCal = maxHour;
+
+    	Calendar cal = new GregorianCalendar();
+    	cal.set(Calendar.HOUR_OF_DAY, mInitialHourOfDay);
+    	cal.set(Calendar.MINUTE, mInitialMinute);
+
+    	if(cal.before(mMinHourCal)) {
+    		mInitialHourOfDay = mMinHourCal.get(Calendar.HOUR_OF_DAY);
+    		mInitialMinute = mMinHourCal.get(Calendar.MINUTE);
+    	} else if(cal.after(mMaxHourCal)) {
+    		mInitialHourOfDay = mMaxHourCal.get(Calendar.HOUR_OF_DAY);
+    		mInitialMinute = mMaxHourCal.get(Calendar.MINUTE);
+    	}
     }
 
     /**
@@ -220,8 +255,14 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
         mTimePicker = (RadialPickerLayout) view.findViewById(R.id.time_picker);
         mTimePicker.setOnValueSelectedListener(this);
         mTimePicker.setOnKeyListener(keyboardListener);
-        mTimePicker.initialize(getActivity(), mHapticFeedbackController, mInitialHourOfDay,
-            mInitialMinute, mIs24HourMode);
+        if(mMinHourCal != null && mMaxHourCal != null) {
+        	mTimePicker.initialize(getActivity(), mHapticFeedbackController, mInitialHourOfDay,
+                mInitialMinute, mIs24HourMode, mMinHourCal, mMaxHourCal);
+        } else {
+        	mTimePicker.initialize(getActivity(), mHapticFeedbackController, mInitialHourOfDay,
+                mInitialMinute, mIs24HourMode);
+        }
+        
 
         int currentItemShowing = HOUR_INDEX;
         if (savedInstanceState != null &&
@@ -250,6 +291,29 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
         mDoneButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
+            	if(mMinHourCal != null && mMaxHourCal != null) {
+	            	// checks Min Max Values
+	            	Calendar selectedTime = new GregorianCalendar();
+	            	selectedTime.set(Calendar.HOUR_OF_DAY, mTimePicker.getHours());
+	            	selectedTime.set(Calendar.MINUTE, mTimePicker.getMinutes());
+	            	selectedTime.set(Calendar.MILLISECOND, 0);
+	            	
+	            	int minHour = mMinHourCal.get(Calendar.HOUR_OF_DAY);
+	            	int maxHour = mMaxHourCal.get(Calendar.HOUR_OF_DAY);
+	            	int minMinute = mMinHourCal.get(Calendar.MINUTE);
+	            	int maxMinute = mMaxHourCal.get(Calendar.MINUTE);
+	            	
+	            	boolean checkMinMaxValues = (
+	            			(mTimePicker.getHours() == minHour && mTimePicker.getMinutes() == minMinute) || selectedTime.after(mMinHourCal)) 
+	            			&& ((mTimePicker.getHours() == maxHour && mTimePicker.getMinutes() == maxMinute) || selectedTime.before(mMaxHourCal));
+	            	
+	            	if(!checkMinMaxValues) {
+	            		mTimePicker.tryVibrate();
+	            		dismiss();
+	            		return;
+	            	}
+            	}
+            	
                 if (mInKbMode && isTypedTimeFullyLegal()) {
                     finishKbMode(false);
                 } else {
@@ -390,6 +454,17 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
     @Override
     public void onValueSelected(int pickerIndex, int newValue, boolean autoAdvance) {
         if (pickerIndex == HOUR_INDEX) {
+        	
+        	if(mMinHourCal != null && mMaxHourCal != null) {
+	        	int minHour = mMinHourCal.get(Calendar.HOUR_OF_DAY);
+	    		int maxHour = mMaxHourCal.get(Calendar.HOUR_OF_DAY);
+	
+	    		if(newValue < minHour || newValue > maxHour) {
+	    			return;
+	    		}
+        	}
+
+    		
             setHour(newValue, false);
             String announcement = String.format("%d", newValue);
             if (mAllowAutoAdvance && autoAdvance) {
@@ -460,6 +535,8 @@ public class TimePickerDialog extends DialogFragment implements OnValueSelectedL
             }
             labelToAnimate = mHourView;
         } else {
+        	// Initialize minutes with the current hour
+        	mTimePicker.initializeMinutesView();
             int minutes = mTimePicker.getMinutes();
             mTimePicker.setContentDescription(mMinutePickerDescription + ": " + minutes);
             if (announce) {

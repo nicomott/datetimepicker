@@ -16,6 +16,8 @@
 
 package com.android.datetimepicker.time;
 
+import java.util.Calendar;
+
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
@@ -92,6 +94,9 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
 
     private AnimatorSet mTransition;
     private Handler mHandler = new Handler();
+    
+    private Calendar mMinHourCal, mMaxHourCal;
+
 
     public interface OnValueSelectedListener {
         void onValueSelected(int pickerIndex, int newValue, boolean autoAdvance);
@@ -217,6 +222,142 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
 
         mTimeInitialized = true;
     }
+    
+    /**
+     * Initialize the Layout with starting values.
+     *
+     * @param context
+     * @param initialHoursOfDay
+     * @param initialMinutes
+     * @param is24HourMode
+     * @param maxHourCal 
+     * @param minHourCal 
+     */
+    public void initialize(Context context, HapticFeedbackController hapticFeedbackController,
+    		int initialHoursOfDay, int initialMinutes,
+    		boolean is24HourMode, Calendar minHourCal, Calendar maxHourCal) {
+    	 if (mTimeInitialized) {
+             Log.e(TAG, "Time has already been initialized.");
+             return;
+         }
+
+    	 mMinHourCal = minHourCal;
+         mMaxHourCal = maxHourCal;
+
+         
+         mHapticFeedbackController = hapticFeedbackController;
+         mIs24HourMode = is24HourMode;
+         mHideAmPm = mAccessibilityManager.isTouchExplorationEnabled()? true : mIs24HourMode;
+
+         // Initialize the circle and AM/PM circles if applicable.
+         mCircleView.initialize(context, mHideAmPm);
+         mCircleView.invalidate();
+         if (!mHideAmPm) {
+             mAmPmCirclesView.initialize(context, initialHoursOfDay < 12? AM : PM);
+             mAmPmCirclesView.invalidate();
+         }
+
+         // Initialize the hours and minutes numbers.
+         Resources res = context.getResources();
+         int[] hours = {12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+         int[] hours_24 = {0, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+         int[] minutes = {0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55};
+         String[] hoursTexts = new String[12];
+         String[] innerHoursTexts = new String[12];
+         String[] minutesTexts = new String[12];
+         for (int i = 0; i < 12; i++) {
+             hoursTexts[i] = is24HourMode?
+                     String.format("%02d", hours_24[i]) : String.format("%d", hours[i]);
+             innerHoursTexts[i] = String.format("%d", hours[i]);
+             minutesTexts[i] = String.format("%02d", minutes[i]);
+         }
+         
+         boolean[] statusHours = new boolean[12];
+         boolean[] statusInnerHours = new boolean[12];
+         boolean[] statusMinutes = new boolean[12];
+         
+         int minHour = mMinHourCal.get(Calendar.HOUR_OF_DAY);
+         int maxHour = mMaxHourCal.get(Calendar.HOUR_OF_DAY);
+         
+         for (int i = 0; i < 12; i++) {
+         	statusHours[i] = hours_24[i] >= minHour && hours_24[i] <= maxHour;
+         }
+         for (int i = 0; i < 12; i++) {
+         	statusInnerHours[i] = hours[i] >= minHour && hours[i] <= maxHour;
+         }
+         
+         for (int i = 0; i < 12; i++) {
+         	statusMinutes[i] = true;
+         }
+
+         
+         mHourRadialTextsView.initialize(res,
+                 hoursTexts, (is24HourMode? innerHoursTexts : null), mHideAmPm, true, statusHours, statusInnerHours);
+
+         mHourRadialTextsView.invalidate();
+         mMinuteRadialTextsView.initialize(res, minutesTexts, null, mHideAmPm, false, statusMinutes, null);
+
+         mMinuteRadialTextsView.invalidate();
+
+         // Initialize the currently-selected hour and minute.
+         setValueForItem(HOUR_INDEX, initialHoursOfDay);
+         setValueForItem(MINUTE_INDEX, initialMinutes);
+         int hourDegrees = (initialHoursOfDay % 12) * HOUR_VALUE_TO_DEGREES_STEP_SIZE;
+         mHourRadialSelectorView.initialize(context, mHideAmPm, is24HourMode, true,
+                 hourDegrees, isHourInnerCircle(initialHoursOfDay));
+         int minuteDegrees = initialMinutes * MINUTE_VALUE_TO_DEGREES_STEP_SIZE;
+         mMinuteRadialSelectorView.initialize(context, mHideAmPm, false, false,
+                 minuteDegrees, false);
+
+         mTimeInitialized = true;
+    }
+    
+    public void initializeMinutesView() {
+    	if(mMinHourCal == null || mMinHourCal == null) {
+    		return;
+    	}
+    	int[] minutes = {0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55};
+    	String[] minutesTexts = new String[12];
+        for (int i = 0; i < 12; i++) {
+            minutesTexts[i] = String.format("%02d", minutes[i]);
+        }
+
+        int hour = getHours();
+
+        int minHour = mMinHourCal.get(Calendar.HOUR_OF_DAY);
+        int maxHour = mMaxHourCal.get(Calendar.HOUR_OF_DAY);
+
+        int minMinute = mMinHourCal.get(Calendar.MINUTE);
+        int maxMinute = mMaxHourCal.get(Calendar.MINUTE);
+
+        boolean[] statusMinutes = new boolean[12];
+
+        if(hour > minHour && hour < maxHour) {
+        	for (int i = 0; i < 12; i++) {
+        		statusMinutes[i] = true;
+        	}
+        } else if(hour < minHour || hour > maxHour) {
+        	for (int i = 0; i < 12; i++) {
+        		statusMinutes[i] = false;
+        	}
+    	} else if(hour == minHour) {
+    		for (int i = 0; i < 12; i++) {
+        		statusMinutes[i] = minutes[i] >= minMinute;
+        	}
+    	} else if(hour == maxHour) {
+    		for (int i = 0; i < 12; i++) {
+        		statusMinutes[i] = minutes[i] <= maxMinute;
+        	}
+    	}
+    	
+    	
+    
+
+    	mMinuteRadialTextsView.setStatus(statusMinutes, null);
+    	mMinuteRadialTextsView.invalidate();
+    }
+
+
 
     /* package */ void setTheme(Context context, boolean themeDark) {
         mCircleView.setTheme(context, themeDark);
@@ -825,5 +966,15 @@ public class RadialPickerLayout extends FrameLayout implements OnTouchListener {
         }
 
         return false;
+    }
+    
+    /**
+     * Try to vibrate. To prevent this becoming a single continuous vibration, nothing will
+     * happen if we have vibrated very recently.
+     */
+    public void tryVibrate() {
+        if (mHapticFeedbackController != null) {
+        	mHapticFeedbackController.tryVibrate();
+        }
     }
 }

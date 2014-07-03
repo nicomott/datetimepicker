@@ -24,9 +24,10 @@ import android.animation.ValueAnimator.AnimatorUpdateListener;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Typeface;
 import android.graphics.Paint.Align;
+import android.graphics.Typeface;
 import android.util.Log;
 import android.view.View;
 
@@ -39,6 +40,7 @@ public class RadialTextsView extends View {
     private final static String TAG = "RadialTextsView";
 
     private final Paint mPaint = new Paint();
+    private final Paint mDisabledPaint = new Paint();
 
     private boolean mDrawValuesReady;
     private boolean mIsInitialized;
@@ -47,6 +49,8 @@ public class RadialTextsView extends View {
     private Typeface mTypefaceRegular;
     private String[] mTexts;
     private String[] mInnerTexts;
+    private boolean[] mStatusTexts;
+    private boolean[] mStatusInnerTexts;
     private boolean mIs24HourMode;
     private boolean mHasInnerCircle;
     private float mCircleRadiusMultiplier;
@@ -78,6 +82,18 @@ public class RadialTextsView extends View {
         super(context);
         mIsInitialized = false;
     }
+    
+    public void initialize(Resources res, String[] texts, String[] innerTexts,
+    		boolean is24HourMode, boolean disappearsOut, boolean[] statusTexts, boolean[] statusInnerTexts) {
+    	initialize(res, texts, innerTexts, is24HourMode, disappearsOut);
+    	mStatusTexts = statusTexts;
+    	mStatusInnerTexts = statusInnerTexts;
+    	
+    	
+    	mDisabledPaint.setAntiAlias(true);
+    	mDisabledPaint.setTextAlign(Align.CENTER);
+    	mDisabledPaint.setColor(Color.parseColor("#AFAFAF"));
+    }
 
     public void initialize(Resources res, String[] texts, String[] innerTexts,
             boolean is24HourMode, boolean disappearsOut) {
@@ -95,7 +111,7 @@ public class RadialTextsView extends View {
         mTypefaceRegular = Typeface.create(typefaceFamilyRegular, Typeface.NORMAL);
         mPaint.setAntiAlias(true);
         mPaint.setTextAlign(Align.CENTER);
-
+        
         mTexts = texts;
         mInnerTexts = innerTexts;
         mIs24HourMode = is24HourMode;
@@ -153,6 +169,13 @@ public class RadialTextsView extends View {
         }
         mPaint.setColor(textColor);
     }
+    
+    public void setStatus(boolean[] statusTexts, boolean[] statusInnerTexts) {
+    	mStatusTexts = statusTexts;
+    	mStatusInnerTexts = statusInnerTexts;
+    }
+
+
 
     /**
      * Allows for smoother animation.
@@ -220,10 +243,10 @@ public class RadialTextsView extends View {
         }
 
         // Draw the texts in the pre-calculated positions.
-        drawTexts(canvas, mTextSize, mTypefaceLight, mTexts, mTextGridWidths, mTextGridHeights);
+        drawTexts(canvas, mTextSize, mTypefaceLight, mTexts, mTextGridWidths, mTextGridHeights, mStatusTexts);
         if (mHasInnerCircle) {
             drawTexts(canvas, mInnerTextSize, mTypefaceRegular, mInnerTexts,
-                    mInnerTextGridWidths, mInnerTextGridHeights);
+                    mInnerTextGridWidths, mInnerTextGridHeights, mStatusInnerTexts);
         }
     }
 
@@ -266,21 +289,23 @@ public class RadialTextsView extends View {
      * Draw the 12 text values at the positions specified by the textGrid parameters.
      */
     private void drawTexts(Canvas canvas, float textSize, Typeface typeface, String[] texts,
-            float[] textGridWidths, float[] textGridHeights) {
+            float[] textGridWidths, float[] textGridHeights, boolean[] status) {
         mPaint.setTextSize(textSize);
         mPaint.setTypeface(typeface);
-        canvas.drawText(texts[0], textGridWidths[3], textGridHeights[0], mPaint);
-        canvas.drawText(texts[1], textGridWidths[4], textGridHeights[1], mPaint);
-        canvas.drawText(texts[2], textGridWidths[5], textGridHeights[2], mPaint);
-        canvas.drawText(texts[3], textGridWidths[6], textGridHeights[3], mPaint);
-        canvas.drawText(texts[4], textGridWidths[5], textGridHeights[4], mPaint);
-        canvas.drawText(texts[5], textGridWidths[4], textGridHeights[5], mPaint);
-        canvas.drawText(texts[6], textGridWidths[3], textGridHeights[6], mPaint);
-        canvas.drawText(texts[7], textGridWidths[2], textGridHeights[5], mPaint);
-        canvas.drawText(texts[8], textGridWidths[1], textGridHeights[4], mPaint);
-        canvas.drawText(texts[9], textGridWidths[0], textGridHeights[3], mPaint);
-        canvas.drawText(texts[10], textGridWidths[1], textGridHeights[2], mPaint);
-        canvas.drawText(texts[11], textGridWidths[2], textGridHeights[1], mPaint);
+        mDisabledPaint.setTextSize(textSize);
+        mDisabledPaint.setTypeface(typeface);
+        canvas.drawText(texts[0], textGridWidths[3], textGridHeights[0], status == null || status[0] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[1], textGridWidths[4], textGridHeights[1], status == null || status[1] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[2], textGridWidths[5], textGridHeights[2], status == null || status[2] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[3], textGridWidths[6], textGridHeights[3], status == null || status[3] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[4], textGridWidths[5], textGridHeights[4], status == null || status[4] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[5], textGridWidths[4], textGridHeights[5], status == null || status[5] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[6], textGridWidths[3], textGridHeights[6], status == null || status[6] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[7], textGridWidths[2], textGridHeights[5], status == null || status[7] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[8], textGridWidths[1], textGridHeights[4], status == null || status[8] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[9], textGridWidths[0], textGridHeights[3], status == null || status[9] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[10], textGridWidths[1], textGridHeights[2], status == null || status[10] ? mPaint : mDisabledPaint);
+        canvas.drawText(texts[11], textGridWidths[2], textGridHeights[1], status == null || status[11] ? mPaint : mDisabledPaint);
     }
 
     /**
